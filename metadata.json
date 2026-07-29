@@ -1,0 +1,6 @@
+{
+  "name": "voma.vn - CRM Đa Kênh & Thuế Tự Động",
+  "description": "Giải Pháp CRM Đa Kênh kết hợp Thuế tự động, PIM, OMS, WMS và Hóa Đơn Điện Tử dành riêng cho Nhà Bán & Doanh Nghiệp Việt Nam.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
