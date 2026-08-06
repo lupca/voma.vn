@@ -95,7 +95,7 @@ export const Footer: React.FC<FooterProps> = ({ onOpenConsultation }) => {
         {/* Bottom copyright */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <div>
-            © 2026 <strong className="text-slate-300">voma.vn</strong> - VOMA là thương hiệu thuộc <strong className="text-slate-300">CÔNG TY TNHH NỔ THẦN AGENTIC</strong>. Tất cả quyền được bảo lưu.
+            © 2026 <strong className="text-slate-300">voma.vn</strong> - VOMA là thương hiệu thuộc <strong className="text-slate-300">CÔNG TY TNHH NỎ THẦN AGENTIC</strong>. Tất cả quyền được bảo lưu.
           </div>
 
           <button
