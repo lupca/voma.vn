@@ -37,3 +37,7 @@ TypeScript và production build đạt. Bản production local hydrate không l�
 Repository `lupca/voma.vn`, nhánh `main`, tích hợp GitHub → Vercel đã tồn tại. Build mới dùng `npm ci` và `npm run build`, output `dist`. Bản cũ trước thay đổi: `e9684dd5b8ece11b458131e5dd3f6c91ae65bcd7`.
 
 Liên hệ giữ email/điện thoại hiện có. Không thêm cơ chế tự gửi email hay biểu mẫu báo thành công giả. Chưa kết nối Search Console hoặc analytics vì chưa có thông tin tài khoản/property cho website.
+
+### Sửa cài đặt trên Vercel — 08/09/2026
+
+Lần triển khai đầu bị npm ci từ chối vì lockfile thiếu các optional package theo nền tảng. Đã tạo lại lockfile trong thư mục sạch bằng npm 11: bổ sung 103 mục, giữ nguyên phiên bản của tất cả package đã khóa. Kiểm tra npm 11 ci, TypeScript và production build/SEO trong thư mục sạch đều đạt.
