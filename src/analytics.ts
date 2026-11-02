@@ -12,7 +12,6 @@ export const SECTION_LABEL: Record<string, string> = {
   "lien-he": "Liên hệ",
   footer: "Footer",
   modules: "Sản phẩm",
-  pricing: "Bảng giá",
   faq: "Hỏi đáp",
 };
 
@@ -103,9 +102,6 @@ export function getSectionLabel(element: Element | null): string {
   if (container.classList && container.classList.contains("hero")) {
     return SECTION_LABEL.hero;
   }
-  if (container.id) {
-    return container.id;
-  }
   return "Trang chủ";
 }
 
@@ -125,12 +121,6 @@ export function classifyClick(
     return {
       event: "generate_lead",
       params: { method: "phone", label: sectionLabel },
-    };
-  }
-  if (trimmed.includes("zalo.me") || trimmed.startsWith("zalo:")) {
-    return {
-      event: "generate_lead",
-      params: { method: "zalo", label: sectionLabel },
     };
   }
   try {
@@ -189,7 +179,7 @@ export function initAnalytics(
     };
 
   win.gtag("js", new Date());
-  win.gtag("config", cleanId);
+  win.gtag("config", cleanId, { transport_type: "beacon" });
 
   const script = win.document.createElement("script");
   script.async = true;
@@ -235,17 +225,10 @@ export function initAnalytics(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            const id = entry.target.id;
-            if (id && !seenSections.has(id)) {
-              seenSections.add(id);
-              if (id === "pricing") {
-                trackEvent(win, "view_pricing", {
-                  label: SECTION_LABEL.pricing || "Bảng giá",
-                });
-              } else {
-                const label = SECTION_LABEL[id] || id;
-                trackEvent(win, "section_view", { label });
-              }
+            const label = getSectionLabel(entry.target);
+            if (label && label !== "Trang chủ" && !seenSections.has(label)) {
+              seenSections.add(label);
+              trackEvent(win, "section_view", { label });
               observer.unobserve(entry.target);
             }
           }
@@ -254,7 +237,7 @@ export function initAnalytics(
       { threshold: 0.2 }
     );
 
-    const sections = win.document.querySelectorAll("main > section[id], section[id]");
+    const sections = win.document.querySelectorAll("main > section");
     sections.forEach((sec) => observer.observe(sec));
   }
 }
