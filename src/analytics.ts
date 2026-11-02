@@ -183,7 +183,9 @@ export function initAnalytics(
   script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(cleanId)}`;
   win.document.head.appendChild(script);
 
-  win.document.addEventListener("click", (event: MouseEvent) => {
+  const onLinkClick = (event: MouseEvent) => {
+    // Chrome fires 'auxclick' (not 'click') for the middle button; ignore other aux buttons.
+    if (event.type === "auxclick" && event.button !== 1) return;
     const anchor = (event.target as Element | null)?.closest("a");
     if (!anchor) return;
     const href = anchor.getAttribute("href") || "";
@@ -196,11 +198,15 @@ export function initAnalytics(
       trackEvent(win, classified.event, classified.params);
       // gtag batches hits ~5s; a same-tab navigation to app/docs would drop them.
       // GA4 flushes its queue on pagehide, so fire it now (hit goes out as a keepalive POST).
+      // ponytail: relies on gtag.js internals (verified on the wire); other pagehide listeners also run.
+      // Drop it if GA stops flushing on pagehide; transport_type beacon is the fallback.
       if (classified.event === "sign_up_click" || classified.event === "view_docs") {
         win.dispatchEvent?.(new Event("pagehide"));
       }
     }
-  });
+  };
+  win.document.addEventListener("click", onLinkClick);
+  win.document.addEventListener("auxclick", onLinkClick);
 
   let videoTracked = false;
   win.document.addEventListener(

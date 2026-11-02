@@ -353,3 +353,13 @@ test("app/docs click sends hit then flushes via pagehide, in that order; navigat
   assert.deepEqual(order, ["view_docs", "pagehide", "sign_up_click", "pagehide", "generate_lead"]);
   assert.equal(prevented, 0);
 });
+
+test("auxclick: middle button is tracked, right/other aux buttons are not", () => {
+  const { listeners, events } = initWithCapture();
+  assert.equal(listeners["auxclick"].length, 1);
+  const aux = listeners["auxclick"][0];
+  const app = anchor("https://app.voma.vn/", sec("header"));
+  aux({ type: "auxclick", button: 1, target: app });
+  aux({ type: "auxclick", button: 2, target: app });
+  assert.deepEqual(events, [{ name: "sign_up_click", params: { label: "Header" } }]);
+});
