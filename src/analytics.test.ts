@@ -338,21 +338,18 @@ test("section_view covers hero (no id) and fires once per section", () => {
   assert.ok(events.every((e) => e.name === "section_view"));
 });
 
-test("plain click to app/docs holds navigation until gtag callback; modified click does not", () => {
+test("app/docs click sends hit then flushes via pagehide, in that order; navigation is not blocked", () => {
   const m = createMockWindow();
   initAnalytics("G-TEST", m.win);
-  const sent: any[] = [];
-  m.win.gtag = (_c: string, _n: string, p: any) => sent.push(p);
-  m.win.location.href = "";
-  m.win.setTimeout = () => 0;
+  const order: string[] = [];
+  m.win.gtag = (_c: string, n: string) => order.push(n);
+  m.win.dispatchEvent = (e: Event) => order.push(e.type);
   const click = m.listeners["click"][0];
   let prevented = 0;
-  const a = anchor("https://docs.voma.vn/", sec("hoi-dap"));
-  click({ target: a, button: 0, preventDefault: () => prevented++ });
-  assert.equal(prevented, 1);
-  assert.equal(m.win.location.href, "");
-  sent[0].event_callback();
-  assert.equal(m.win.location.href, "https://docs.voma.vn/");
-  click({ target: a, button: 0, ctrlKey: true, preventDefault: () => prevented++ });
-  assert.equal(prevented, 1);
+  const pd = () => prevented++;
+  click({ target: anchor("https://docs.voma.vn/", sec("hoi-dap")), button: 0, preventDefault: pd });
+  click({ target: anchor("https://app.voma.vn/", sec("hoi-dap")), button: 0, preventDefault: pd });
+  click({ target: anchor("mailto:a@b.vn", sec("lien-he")), button: 0, preventDefault: pd });
+  assert.deepEqual(order, ["view_docs", "pagehide", "sign_up_click", "pagehide", "generate_lead"]);
+  assert.equal(prevented, 0);
 });
