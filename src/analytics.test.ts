@@ -8,12 +8,16 @@ import {
   initAnalytics,
   resetAnalyticsStateForTesting,
   syncUtmStorage,
+  updateAppLinks,
   withUtm,
   UTM_STORAGE_KEY,
 } from "./analytics.ts";
 
-function createMockWindow(search = "") {
+function createMockWindow(search = "", qsa: Record<string, any[]> = {}) {
+  const gtagCalls: any[][] = [];
   const scripts: any[] = [];
+  const observers: any[] = [];
+  const observed: any[] = [];
   const listeners: Record<string, Function[]> = {};
   const storage: Record<string, string> = {};
 
@@ -29,8 +33,8 @@ function createMockWindow(search = "") {
     createElement(tag: string) {
       return { tagName: tag.toUpperCase(), async: false, src: "" };
     },
-    querySelectorAll(_selector: string) {
-      return [];
+    querySelectorAll(selector: string) {
+      return (qsa[selector] ?? []) as any[];
     },
     addEventListener(event: string, cb: Function) {
       listeners[event] = listeners[event] || [];
@@ -62,13 +66,20 @@ function createMockWindow(search = "") {
       listeners[event].push(cb);
     },
     IntersectionObserver: class MockIntersectionObserver {
-      observe() {}
+      cb: Function;
+      constructor(cb: Function) {
+        this.cb = cb;
+        observers.push(this);
+      }
+      observe(el: any) {
+        observed.push(el);
+      }
       unobserve() {}
       disconnect() {}
     },
   };
 
-  return { win: win as any, scripts, listeners, storage };
+  return { win: win as any, scripts, listeners, storage, gtagCalls, observers, observed };
 }
 
 beforeEach(() => {
@@ -192,15 +203,6 @@ test("guard 3: PII-free payload never leaks email, phone, mailto, or tel in para
   assert.doesNotMatch(telParamsString, /[0-9]/, "Payload must not contain phone digits");
   assert.doesNotMatch(telParamsString, /tel:/i, "Payload must not contain 'tel:'");
 
-  // zalo click
-  const zaloEvent = classifyClick("https://zalo.me/0983650552", "Liên hệ");
-  assert.ok(zaloEvent);
-  assert.equal(zaloEvent.event, "generate_lead");
-  assert.equal(telEvent.params.method, "phone");
-  assert.equal(zaloEvent.params.method, "zalo");
-  const zaloParamsString = JSON.stringify(zaloEvent.params);
-  assert.doesNotMatch(zaloParamsString, /[0-9]/, "Zalo payload must not contain phone digits");
-
   // app.voma.vn click
   const appEvent = classifyClick("https://app.voma.vn", "Header");
   assert.ok(appEvent);
@@ -246,4 +248,111 @@ test("getSectionLabel derives label from closest container", () => {
     closest: (sel: string) => (sel.includes("section") ? { tagName: "SECTION", id: "", classList: { contains: (c: string) => c === "hero" } } : null),
   };
   assert.equal(getSectionLabel(mockHeroAnchor as any), "Hero");
+});
+
+// Init with a fake ID and capture every ("event", name, params) call.
+function initWithCapture(search = "", qsa: Record<string, any[]> = {}) {
+  const m = createMockWindow(search, qsa);
+  initAnalytics("G-TEST", m.win);
+  const events: { name: string; params: any }[] = [];
+  m.win.gtag = (cmd: string, name: string, params: any) => {
+    if (cmd === "event") events.push({ name, params });
+  };
+  return { ...m, events };
+}
+
+function anchor(href: string, sectionContainer: any) {
+  const a: any = {
+    href,
+    getAttribute: () => href,
+    closest: (sel: string) => (sel === "a" ? a : sectionContainer),
+  };
+  return a;
+}
+
+const sec = (id: string, cls = "") => {
+  const el: any = {
+    tagName: "SECTION",
+    id,
+    classList: { contains: (c: string) => c === cls },
+    closest: () => el,
+  };
+  return el;
+};
+
+test("config uses beacon transport so clicks survive navigation", () => {
+  const m = createMockWindow();
+  initAnalytics("G-TEST", m.win);
+  const cfg = m.win.dataLayer.filter((a: any) => a[0] === "config");
+  assert.equal(cfg.length, 1);
+  assert.equal(cfg[0][2].transport_type, "beacon");
+});
+
+test("click handler sends label from section map, rewrites app href, no href in params", () => {
+  const { listeners, events } = initWithCapture("?utm_source=fb");
+  const click = listeners["click"][0];
+  const app = anchor("https://app.voma.vn/", sec("hoi-dap"));
+  click({ target: app });
+  assert.equal(app.href, "https://app.voma.vn/?utm_source=fb");
+  const docs = anchor("https://docs.voma.vn/", sec("hoi-dap"));
+  click({ target: docs });
+  const mail = anchor("mailto:contact@nothanagentic.vn", sec("lien-he"));
+  click({ target: mail });
+  assert.deepEqual(events, [
+    { name: "sign_up_click", params: { label: "Hỏi đáp" } },
+    { name: "view_docs", params: { label: "Hỏi đáp" } },
+    { name: "generate_lead", params: { method: "email", label: "Liên hệ" } },
+  ]);
+});
+
+test("updateAppLinks only rewrites with utm and leaves link alone without", () => {
+  const link: any = { href: "https://app.voma.vn/" };
+  const { win } = createMockWindow("?utm_source=fb", { 'a[href*="app.voma.vn"]': [] });
+  (win.document.querySelectorAll as any) = () => [link];
+  link.href = "https://app.voma.vn/";
+  updateAppLinks(win.document, { utm_source: "fb" });
+  assert.equal(link.href, "https://app.voma.vn/?utm_source=fb");
+  link.href = "https://app.voma.vn/";
+  updateAppLinks(win.document, {});
+  assert.equal(link.href, "https://app.voma.vn/");
+});
+
+test("view_video fires once per page view", () => {
+  const { listeners, events } = initWithCapture();
+  const play = listeners["play"][0];
+  play({ target: { tagName: "VIDEO" } });
+  play({ target: { tagName: "VIDEO" } });
+  play({ target: { tagName: "AUDIO" } });
+  assert.deepEqual(events, [{ name: "view_video", params: { label: "Video" } }]);
+});
+
+test("section_view covers hero (no id) and fires once per section", () => {
+  const hero = sec("", "hero");
+  const faq = sec("hoi-dap");
+  const { observers, observed, events } = initWithCapture("", { "main > section": [hero, faq] });
+  assert.deepEqual(observed, [hero, faq]);
+  const cb = observers[0].cb;
+  cb([{ isIntersecting: true, target: hero }, { isIntersecting: false, target: faq }]);
+  cb([{ isIntersecting: true, target: hero }, { isIntersecting: true, target: faq }]);
+  assert.deepEqual(events.map((e) => e.params.label), ["Hero", "Hỏi đáp"]);
+  assert.ok(events.every((e) => e.name === "section_view"));
+});
+
+test("plain click to app/docs holds navigation until gtag callback; modified click does not", () => {
+  const m = createMockWindow();
+  initAnalytics("G-TEST", m.win);
+  const sent: any[] = [];
+  m.win.gtag = (_c: string, _n: string, p: any) => sent.push(p);
+  m.win.location.href = "";
+  m.win.setTimeout = () => 0;
+  const click = m.listeners["click"][0];
+  let prevented = 0;
+  const a = anchor("https://docs.voma.vn/", sec("hoi-dap"));
+  click({ target: a, button: 0, preventDefault: () => prevented++ });
+  assert.equal(prevented, 1);
+  assert.equal(m.win.location.href, "");
+  sent[0].event_callback();
+  assert.equal(m.win.location.href, "https://docs.voma.vn/");
+  click({ target: a, button: 0, ctrlKey: true, preventDefault: () => prevented++ });
+  assert.equal(prevented, 1);
 });

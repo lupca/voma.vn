@@ -11,9 +11,6 @@ export const SECTION_LABEL: Record<string, string> = {
   "hoi-dap": "Hỏi đáp",
   "lien-he": "Liên hệ",
   footer: "Footer",
-  modules: "Sản phẩm",
-  pricing: "Bảng giá",
-  faq: "Hỏi đáp",
 };
 
 export interface AnalyticsEvent {
@@ -103,9 +100,6 @@ export function getSectionLabel(element: Element | null): string {
   if (container.classList && container.classList.contains("hero")) {
     return SECTION_LABEL.hero;
   }
-  if (container.id) {
-    return container.id;
-  }
   return "Trang chủ";
 }
 
@@ -125,12 +119,6 @@ export function classifyClick(
     return {
       event: "generate_lead",
       params: { method: "phone", label: sectionLabel },
-    };
-  }
-  if (trimmed.includes("zalo.me") || trimmed.startsWith("zalo:")) {
-    return {
-      event: "generate_lead",
-      params: { method: "zalo", label: sectionLabel },
     };
   }
   try {
@@ -156,10 +144,13 @@ export function classifyClick(
 export function trackEvent(
   win: Window,
   eventName: string,
-  params: Record<string, string>
+  params: Record<string, string>,
+  callback?: () => void
 ): void {
   if (typeof win.gtag === "function") {
-    win.gtag("event", eventName, params);
+    win.gtag("event", eventName, callback ? { ...params, event_callback: callback } : params);
+  } else if (callback) {
+    callback();
   }
 }
 
@@ -189,7 +180,8 @@ export function initAnalytics(
     };
 
   win.gtag("js", new Date());
-  win.gtag("config", cleanId);
+  // beacon transport so click events survive same-tab navigation to app/docs
+  win.gtag("config", cleanId, { transport_type: "beacon" });
 
   const script = win.document.createElement("script");
   script.async = true;
@@ -206,7 +198,27 @@ export function initAnalytics(
       if (classified.event === "sign_up_click" && Object.keys(utms).length > 0) {
         anchor.href = withUtm(anchor.href, utms);
       }
-      trackEvent(win, classified.event, classified.params);
+      // Same-tab cross-origin nav drops queued hits: hold the navigation until
+      // gtag confirms the hit (or 1s), then go. Modified/new-tab clicks are untouched.
+      const leaves =
+        (classified.event === "sign_up_click" || classified.event === "view_docs") &&
+        event.button === 0 &&
+        !event.defaultPrevented &&
+        !(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) &&
+        (!anchor.target || anchor.target === "_self");
+      if (leaves) {
+        event.preventDefault();
+        let done = false;
+        const go = () => {
+          if (done) return;
+          done = true;
+          win.location.href = anchor.href;
+        };
+        win.setTimeout(go, 1000);
+        trackEvent(win, classified.event, classified.params, go);
+      } else {
+        trackEvent(win, classified.event, classified.params);
+      }
     }
   });
 
@@ -230,31 +242,22 @@ export function initAnalytics(
   );
 
   if (typeof win.IntersectionObserver === "function") {
-    const seenSections = new Set<string>();
+    const seenSections = new Set<Element>();
     const observer = new win.IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const id = entry.target.id;
-            if (id && !seenSections.has(id)) {
-              seenSections.add(id);
-              if (id === "pricing") {
-                trackEvent(win, "view_pricing", {
-                  label: SECTION_LABEL.pricing || "Bảng giá",
-                });
-              } else {
-                const label = SECTION_LABEL[id] || id;
-                trackEvent(win, "section_view", { label });
-              }
-              observer.unobserve(entry.target);
-            }
+          if (entry.isIntersecting && !seenSections.has(entry.target)) {
+            seenSections.add(entry.target);
+            trackEvent(win, "section_view", { label: getSectionLabel(entry.target) });
+            observer.unobserve(entry.target);
           }
         }
       },
       { threshold: 0.2 }
     );
 
-    const sections = win.document.querySelectorAll("main > section[id], section[id]");
-    sections.forEach((sec) => observer.observe(sec));
+    win.document
+      .querySelectorAll("main > section")
+      .forEach((sec) => observer.observe(sec));
   }
 }
