@@ -65,9 +65,9 @@ Vite nhúng giá trị `VITE_GA_MEASUREMENT_ID` vào file JavaScript **tại th�
 
 ### 3.1. Trường hợp sự kiện đã xuất hiện
 
-1. Trong bảng **Existing events**, tìm `generate_lead`.
-2. Bật công tắc **Mark as key event**.
-3. Lặp lại với `sign_up_click`.
+1. Mở tab **Recent events** (hoặc dùng ô tìm kiếm để tìm sự kiện).
+2. Tìm `generate_lead`, rồi bấm biểu tượng **ngôi sao** bên cạnh sự kiện để đánh dấu key event.
+3. Lặp lại bước 2 với `sign_up_click`.
 
 ### 3.2. Sự kiện chỉ hiện trong Events sau khi bắn lần đầu
 
@@ -77,14 +77,12 @@ Sự kiện chỉ xuất hiện trong danh sách Events **sau khi nó đã đư�
 
 **Cách B: Tạo trước.** Dùng khi muốn đánh dấu ngay mà không chờ.
 
-1. Vào **Admin > Data display > Events**, bấm **Create event**.
-2. Đặt **Custom event name** là `generate_lead` (hoặc `sign_up_click`).
-3. Ở **Matching conditions**, thêm một điều kiện: **event_name** **equals** `generate_lead` (hoặc `sign_up_click`).
-4. Lưu. Sau đó đánh dấu key event như mục 3.1.
+1. Vào **Admin > Data display > Events**, bấm **+ Create event**.
+2. Trong hộp thoại Create event, bật công tắc **Mark as key event** trước khi bấm **Create**.
+3. Điền tên và điều kiện của sự kiện theo hướng dẫn trong hộp thoại. **Không đặt tên trùng với tên sự kiện nguồn** (`generate_lead`, `sign_up_click`): Google chưa xác nhận cách làm này an toàn. Nếu chưa xác minh được, hãy dùng Cách A và đợi sự kiện xuất hiện.
+4. Bấm **Create**.
 
-Lưu ý: Cách B tạo ra một sự kiện tùy chỉnh có cùng tên, lọc theo `event_name`. Nó không thay đổi cách website gửi dữ liệu. Nếu dữ liệu đã có sẵn, không cần làm Cách B.
-
-Google cũng có trang **Admin > Data display > Key events > New key event**, nơi bạn nhập tên sự kiện trực tiếp. Tên sự kiện không được chứa ký tự đặc biệt.
+Tên sự kiện không được chứa ký tự đặc biệt.
 
 Dữ liệu key event trên báo cáo chuẩn có thể mất tới 24 giờ mới hiện đầy đủ.
 
